@@ -14,4 +14,19 @@ code {
 
 .homePage {
   margin-left: 2rem;
+  justify-content: center;
+  align-content: center;
+}
+
+img {
+  width: 15%;
+  height: 15%;
+  justify-content: center;
+}
+
+img, h1, h2, h3, h4, h5, h6 {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+  text-align: center;
 }

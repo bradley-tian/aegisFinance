@@ -18,6 +18,8 @@ app.use('/request-type', (req, res, next) => {
   next();
 });
 
+app.use(express.json());
+
 app.get('/', (req, res) => {
   res.send('Successful response.');
 });
@@ -42,21 +44,40 @@ app.get('/get_transactions', (req, res) => {
   console.log("fetch complete.")
 })
 
-app.post('/add_transaction', (req, res) => {
-  const data = req.body;
-  const insert_data = async () => {
-    const transaction = {
-      created_at: new Date(),
-      Destination: body.destination,
-      Amount: body.amount,
+app.get('/get_reimbursements', (req, res) => {
+  let transactions = {};
+  let fetch_data = async (res) => {
+    try {
+      let { data, error } = await supabase.from('reimbursements').select('*');
+      transactions = data;
+      console.log(data)
+      if (transactions === {}) {
+        console.log("No data retrieved.")
+      }
+      res.send(transactions);
+    } catch(error) {
+      console.log('fetch failed.')
+      console.log(error.message);
     };
-    let { error } = await supabase.from("transactions").insert(transaction);
+  }
+  fetch_data(res);
+  console.log("fetch complete.")
+})
+
+app.post('/add_reimbursement', (req, res) => {
+  const data = req.body;
+  console.log(data);
+  const insert_data = async (data) => {
+    const transaction = {
+      'created_at': new Date(),
+      ...data
+    };
+    let { error } = await supabase.from("reimbursements").insert(transaction);
     if (error) {
       throw error;
     }
   }
-
-  insert_data();
+  insert_data(data);
   res.send("SUCCESS")
 })
 

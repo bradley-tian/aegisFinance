@@ -1,7 +1,7 @@
 import React from 'react';
 import { Button, Table } from '@mui/material';
 import { useEffect, useState } from 'react';
-
+import axios from 'axios';
 import {
     Box,
     TextField,
@@ -14,15 +14,16 @@ import {
 import { useNavigate } from "react-router-dom";
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import "./index.css";
-// import "./employee.css";
+import "./employee.css";
 
 function Employee() {
     const [reimburseDesc, setReimburseDesc] = useState('');
     const [amount, setAmount] = useState(0);
-    const [expenses, setExpenses] = useState([]);
+    const [expenses, setExpenses] = useState(null);
     const [reimbursements, setReimbursements] = useState([]);
-
     const [selectedRows, setSelectedRows] = useState([]);
+    const [key, setKey] = useState(" ");
+    const [index, setIndex] = useState([]);
 
     const handleReimburseDescChange = (event) => {
         setReimburseDesc(event.target.value);
@@ -32,11 +33,29 @@ function Employee() {
         setAmount(parseInt(event.target.value));
     };
 
-    const handleClick = (index) => {
-        if (selectedRows.includes(index)) {
-            setSelectedRows(selectedRows.filter((i) => i !== index));
+    const handleClick = (transaction) => {
+        if (!selectedRows.includes(transaction)) {
+            selectedRows.push(transaction);
+            setAmount(amount + transaction.Amount);
+            const newIndex = [...index]
+            newIndex[transaction.id - 1] = 1;
+            setIndex(newIndex);
+            console.log(selectedRows);
         } else {
-            setSelectedRows([...selectedRows, index]);
+            let newarr = [...selectedRows];
+            let indexTo = 0;
+            for (let i = 0; i < selectedRows.length; i++) {
+                if (selectedRows[i].id === transaction.id) {
+                    indexTo = i;
+                }
+            }
+            const newIndex = [...index]
+            newIndex[transaction.id - 1] = 0;
+            setIndex(newIndex);
+            newarr.splice(indexTo, 1);
+            setAmount(amount - transaction.Amount);
+            setSelectedRows(newarr);
+            console.log(selectedRows);
         }
     };
 
@@ -62,44 +81,78 @@ function Employee() {
         })
         .then(response => response.json())
         .then(data => {
-            setExpenses(data)
+            setExpenses(Object.values(data))
+            const arr = new Array(data.length).fill(0);
+            setIndex(arr);
+        })
+
+    }
+
+    async function fetch_reimbursements() {
+        await fetch('http://localhost:3003/get_reimbursements', {
+            method: 'GET'
+        })
+        .then(response => response.json())
+        .then(data => {
+            setReimbursements(Object.values(data))
         })
     }
 
     useEffect(() => {
         fetch_transactions();
-        console.log(expenses[0].id)
+        fetch_reimbursements();
     }, [])
 
-    // create json object when the button is clicked
-    function saveGreenCells() {
-        const greenCells = [];
+    function aggregateTotal() {
+        let total = 0;
 
-        // Get all table rows
-        const tableRows = document.querySelectorAll('data');
-
-        // Iterate over the rows and check if any of the cells are green
-        for (let i = 0; i < tableRows.length; i++) {
-            const row = tableRows[i];
-            const cells = row.getElementsByTagName('td');
-
-            for (let j = 0; j < cells.length; j++) {
-                const cell = cells[j];
-
-                if (cell.style.backgroundColor === 'green') {
-                    // Save the cell value to the array
-                    greenCells.push(cell.textContent);
-                }
-            }
+        for (let i = 0; i < selectedRows.length; i++) {
+            total += selectedRows[i].Amount;
         }
-        console.log(greenCells);
+
+        setAmount(total);
     }
 
-    fetch_transactions();
+    async function submitData() {
+        await fetch('http://localhost:3003/add_reimbursement', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+              },
+            body: JSON.stringify(
+                {
+                    Description: reimburseDesc,
+                    Amount: amount,
+                    Progress: "Pending",
+                }
+            )
+        }
+        ).then(() => {
+            setKey("Deploying on-chain! Public Key: 0x7c125C1d515b8945841b3d5144a060115C58725F");
+            setAmount(0);
+            setSelectedRows([]);
+            const arr = new Array(expenses.length).fill(0);
+            setIndex(arr);
+        })
+    }
+
+    useEffect(() => {
+        fetch_reimbursements();
+    }, [amount])
+
+    if (!expenses) {
+        return (
+            <div>
+                <h4>Loading Transactions, Please Wait...</h4>
+            </div>
+        )
+    }
 
     return (
         <ThemeProvider theme={theme}>
             <div className='employeePage'>
+                <Button variant="outlined" color="primary" onClick={() => navigate('/')}>Return Home</Button>
                 <h2>Thank you for choosing Aegis Finance!</h2>
                 <h5>Choose your expenses to reimburse:</h5>
 
@@ -116,22 +169,24 @@ function Employee() {
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
-                                    {(Object.values(expenses)).map((expense) => {
+                                    {expenses.map((expense) => (
                                         <TableRow
                                             key={expense.created_at}
-                                            onClick={() => handleClick(expense.id)}
-                                            className={selectedRows.includes(expense.id) ? 'selected-row' : ''}
+                                            onClick={() => handleClick(expense)}
+                                            style = {{backgroundColor: index[expense.id - 1] === 0 ? "#FFFFFF" : "#97FDD5"}}
                                         >
-                                            <TableCell className="data">{expense.created_at}</TableCell>
+                                            <TableCell className="data">{expense.created_at ? expense.created_at : 'N/A'}</TableCell>
                                             <TableCell className="data">{expense.Payee}</TableCell>
                                             <TableCell className="data">{expense.Description}</TableCell>
                                             <TableCell className="data">{expense.Amount}</TableCell>
                                         </TableRow>
-                                    })}
+                                    ))}
                                 </TableBody>
                             </Table>
                         </TableContainer>
                     </div>
+                    <br/>
+                    <br/>
                     <div className="column" >
                         <Box marginBottom={2}>
                             <TextField
@@ -150,10 +205,13 @@ function Employee() {
                                 fullWidth
                             />
                         </Box>
-                        <Button variant="contained" color="primary" onClick={saveGreenCells}>
-                            Generate JSON
+                        <Button variant="contained" color="primary" onClick={() => submitData()}>
+                            Submit Request
                         </Button>
-
+                        <p>{key}</p>
+                        <br />
+                        <br />
+                        <h3>Current Reimbursements</h3>
                         <TableContainer>
                             <Table>
                                 <TableHead>
@@ -166,11 +224,11 @@ function Employee() {
                                 </TableHead>
                                 <TableBody>
                                     {reimbursements.map((reimbursement) => (
-                                        <TableRow key={reimbursement.date} className={reimbursement.progress === 'pending' ? 'row-pending' : reimbursement.progress === 'reimbursed' ? 'row-reimbursed' : ''}>
-                                            <TableCell>{reimbursement.date}</TableCell>
-                                            <TableCell>{reimbursement.item}</TableCell>
-                                            <TableCell>{reimbursement.amount}</TableCell>
-                                            <TableCell>{reimbursement.progress}</TableCell>
+                                        <TableRow key={reimbursement.created_at} className={reimbursement.progress === 'pending' ? 'row-pending' : reimbursement.progress === 'reimbursed' ? 'row-reimbursed' : ''}>
+                                            <TableCell>{reimbursement.created_at}</TableCell>
+                                            <TableCell>{reimbursement.Description}</TableCell>
+                                            <TableCell>{reimbursement.Amount}</TableCell>
+                                            <TableCell>{reimbursement.Progress}</TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>
